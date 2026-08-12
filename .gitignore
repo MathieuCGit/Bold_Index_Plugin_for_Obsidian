@@ -1,0 +1,16 @@
+node_modules/
+dist/
+build/
+lib/
+.DS_Store
+Thumbs.db
+.env
+.vscode/
+# Obsidian local settings (no need to track workspace-specific data)
+.obsidian/
+
+# Logs
+*.log
+
+# OS files
+desktop.ini
