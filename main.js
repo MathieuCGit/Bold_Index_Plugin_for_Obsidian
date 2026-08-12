@@ -144,6 +144,44 @@ class BoldIndexView extends ItemView {
     }
 
     /**
+     * jumpToOffset(offset, length)
+     * -----------------------------
+     * Navigue vers une position précise (offset de caractère) dans la
+     * note liée à ce panneau, sélectionne la plage et scroll.
+     */
+    jumpToOffset(offset, length) {
+        const file = this.linkedFile;
+        if (!file) return;
+
+        const markdownLeaves = this.app.workspace.getLeavesOfType('markdown');
+        const targetLeaf = markdownLeaves.find(leaf => leaf.view?.file?.path === file.path);
+        if (!targetLeaf) return;
+
+        this.app.workspace.setActiveLeaf(targetLeaf, { focus: true });
+        const editor = targetLeaf.view.editor;
+
+        // Si l'éditeur a une taille différente (modifs non sauvegardées),
+        // on tente une fallback recherche textuelle.
+        const docText = editor.getValue();
+        let fromPos, toPos;
+        if (offset <= docText.length - 1) {
+            fromPos = editor.offsetToPos(offset);
+            toPos = editor.offsetToPos(Math.min(offset + length, docText.length));
+        } else {
+            // fallback: cherche la première occurrence du fragment
+            const frag = docText.slice(0, Math.min(200, docText.length));
+            const found = docText.indexOf(frag);
+            if (found === -1) return;
+            fromPos = editor.offsetToPos(found);
+            toPos = editor.offsetToPos(found + frag.length);
+        }
+
+        editor.setSelection(fromPos, toPos);
+        editor.scrollIntoView({ from: fromPos, to: toPos }, true);
+        editor.focus();
+    }
+
+    /**
      * update()
      * --------
      * Reconstruit entièrement le contenu du panneau à partir de la note
@@ -183,29 +221,42 @@ class BoldIndexView extends ItemView {
         // récent connu d'Obsidian pour ce fichier.
         const content = await this.app.vault.read(activeFile);
 
-        // Amélioration du parsing : on veut EXTRAIRE les segments en **...**
-        // tout en IGNORANT les blocs de code (``` ou ~~~) et les inline code
-        // entourés par des backticks (`...`). Pour cela, on nettoie d'abord
-        // une copie du contenu en supprimant ces sections, puis on applique
-        // la regex sur le texte nettoyé. On calcule ensuite le nombre réel
-        // d'occurrences dans le contenu d'origine pour l'affichage.
-        const cleaned = content
-            // supprime les fenced code blocks ```...``` et ~~~...~~~
-            .replace(/```[\s\S]*?```/g, '')
-            .replace(/~~~[\s\S]*?~~~/g, '')
-            // supprime les inline code `...`
-            .replace(/`[^`]*`/g, '');
-
-        // Capture **...** mais évite de capturer les triples *** (italic+bold)
-        // en s'assurant que la paire n'est pas suivie/précédée d'un autre '*'.
+        // Parsing robuste : on parcourt le contenu ORIGINAL, on collecte
+        // toutes les occurrences **term** en IGNORANT celles situées dans
+        // des fenced code blocks (```/~~~) ou des inline code (`...`).
+        // Pour chaque terme, on regroupe les occurrences par numéro de
+        // ligne (une ligne = un lien cliquable). Le terme lui-même n'est
+        // pas cliquable.
         const boldRegex = /\*\*(?!\*)(.*?)\*\*(?!\*)/g;
-        const matches = [...cleaned.matchAll(boldRegex)].map(m => m[1].trim());
 
-        // Déduplication et tri en français comme avant.
-        const uniqueMatches = [...new Set(matches)].filter(t => t.length > 0).sort((a, b) => a.localeCompare(b, 'fr'));
+        // Collecte des ranges à ignorer (fenced blocks et inline code)
+        const ignoreRanges = [];
+        const addRanges = (re) => {
+            for (const m of content.matchAll(re)) {
+                if (typeof m.index === 'number') {
+                    ignoreRanges.push([m.index, m.index + m[0].length]);
+                }
+            }
+        };
+        addRanges(/```[\s\S]*?```/g);
+        addRanges(/~~~[\s\S]*?~~~/g);
+        addRanges(/`[^`]*`/g);
 
-        // Helper utilitaire pour échapper une chaîne en regex.
-        const escapeRegExp = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const isIgnored = (pos) => ignoreRanges.some(r => pos >= r[0] && pos < r[1]);
+
+        // Map term -> array of offsets where it appears (start index of **term**)
+        const termOffsets = new Map();
+        for (const m of content.matchAll(boldRegex)) {
+            if (typeof m.index !== 'number') continue;
+            const start = m.index;
+            if (isIgnored(start)) continue;
+            const term = m[1].trim();
+            if (!term) continue;
+            if (!termOffsets.has(term)) termOffsets.set(term, []);
+            termOffsets.get(term).push(start);
+        }
+
+        const uniqueMatches = [...termOffsets.keys()].sort((a, b) => a.localeCompare(b, 'fr'));
 
         if (uniqueMatches.length === 0) {
             container.createEl('p', { text: 'Aucun mot en gras.', cls: 'pane-empty' });
@@ -217,35 +268,51 @@ class BoldIndexView extends ItemView {
         ul.style.listStyle = 'none';
         ul.style.paddingLeft = '0';
 
-        // Génère un <li> cliquable pour chaque mot en gras trouvé.
+        // Génère un <li> pour chaque terme en gras ; le terme est affiché
+        // une seule fois, et on affiche les numéros de lignes cliquables.
         uniqueMatches.forEach(term => {
+            const offsets = termOffsets.get(term) || [];
+            if (offsets.length === 0) return;
+
+            // Regroupe par numéro de ligne et retient le premier offset de
+            // chaque ligne (une ligne = un lien cliquable).
+            const lineMap = new Map();
+            offsets.forEach(off => {
+                const line = content.slice(0, off).split('\n').length; // 1-based
+                if (!lineMap.has(line)) lineMap.set(line, off);
+            });
+
             const li = ul.createEl('li');
             li.style.marginBottom = '6px';
 
-            // On utilise un <span> plutôt qu'un <a> pour l'élément cliquable :
-            // un <a> risquerait d'être intercepté par le gestionnaire de liens
-            // internes d'Obsidian (qui s'attend à un lien de type [[note]] ou
-            // une URL), ce qui casserait notre propre logique de clic.
-            // Calcule le nombre d'occurrences EXACTES dans le contenu
-            // d'origine (on recherche la chaîne littérale `**term**`).
-            const literal = `**${term}**`;
-            const countRegex = new RegExp(escapeRegExp(literal), 'g');
-            const count = (content.match(countRegex) || []).length;
+            // Terme (non cliquable lorsque plusieurs occurrences existent)
+            const termSpan = li.createEl('span', { text: term, cls: 'bold-index-term' });
+            termSpan.style.marginRight = '8px';
 
-            const itemText = count > 1 ? `${term} (${count})` : term;
-            const item = li.createEl('span', { text: itemText, cls: 'bold-index-item' });
-            item.style.cursor = 'pointer';
-            // var(--text-accent) : variable CSS du thème Obsidian, pour que
-            // la couleur s'adapte automatiquement au thème clair/sombre choisi.
-            item.style.color = 'var(--text-accent)';
-            item.style.textDecoration = 'underline';
+            // Container pour les numéros de ligne
+            const linesContainer = li.createEl('span', { cls: 'bold-index-lines' });
 
-            // Au clic : on stoppe la propagation (pour éviter de déclencher
-            // d'autres gestionnaires de clic parents), puis on délègue toute
-            // la logique de navigation à jumpToTerm().
-            item.addEventListener('click', (e) => {
-                e.stopPropagation();
-                this.jumpToTerm(term);
+            // Pour chaque ligne, crée un lien cliquable qui navigue vers
+            // l'offset correspondant.
+            const entries = [...lineMap.entries()].sort((a, b) => a[0] - b[0]);
+            entries.forEach(([line, off], idx) => {
+                const ln = linesContainer.createEl('span', { text: String(line), cls: 'bold-index-line' });
+                ln.style.cursor = 'pointer';
+                ln.style.color = 'var(--text-accent)';
+                ln.style.textDecoration = 'underline';
+                ln.style.marginRight = '6px';
+                ln.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    // longueur de la balise **...**
+                    const literalLen = term.length + 4;
+                    this.jumpToOffset(off, literalLen);
+                });
+
+                // Séparateur visuel entre numéros
+                if (idx < entries.length - 1) {
+                    const sep = linesContainer.createEl('span', { text: ',' });
+                    sep.style.marginRight = '6px';
+                }
             });
         });
     }
