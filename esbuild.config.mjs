@@ -2,13 +2,13 @@ import esbuild from 'esbuild';
 import process from 'process';
 import builtins from 'builtin-modules';
 
-const banner = `/*\nTHIS FILE IS BUNDLED BY ESBUILD - source: main.ts\n*/\n`;
+const banner = `/*\nTHIS FILE IS BUNDLED BY ESBUILD - source: src/main.ts\n*/\n`;
 
 const prod = (process.argv[2] === 'production');
 
 const ctx = await esbuild.context({
   banner: { js: banner },
-  entryPoints: ['main.ts'],
+  entryPoints: ['src/main.ts'],
   bundle: true,
   external: [
     'obsidian',

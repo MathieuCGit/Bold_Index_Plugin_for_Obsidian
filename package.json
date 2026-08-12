@@ -4,11 +4,13 @@
   "private": true,
   "scripts": {
     "dev": "node ./esbuild.config.mjs",
-    "build": "node ./esbuild.config.mjs production"
+    "build": "node ./esbuild.config.mjs production",
+    "test": "vitest run"
   },
   "devDependencies": {
+    "builtin-modules": "^3.3.0",
     "esbuild": "^0.17.0",
     "typescript": "^5.0.0",
-    "builtin-modules": "^3.3.0"
+    "vitest": "^4.1.10"
   }
 }
