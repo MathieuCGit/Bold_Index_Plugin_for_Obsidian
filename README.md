@@ -1,3 +1,6 @@
+
+WARNING : Plugin not supposed to be used in production - Still under HEAVY DEV
+
 # Bold Index Navigation
 
 Plugin Obsidian qui affiche, dans un panneau de la sidebar, un index cliquable de tous les mots ou expressions mis en **gras** dans la note active. Cliquer sur une entrée de l'index sélectionne son occurrence dans le texte et fait défiler l'éditeur jusqu'à elle.
