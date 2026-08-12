@@ -183,20 +183,29 @@ class BoldIndexView extends ItemView {
         // récent connu d'Obsidian pour ce fichier.
         const content = await this.app.vault.read(activeFile);
 
-        // Extraction de tous les segments entourés de **...** via une regex
-        // non gourmande (.*? au lieu de .*), pour bien isoler chaque paire
-        // de ** individuellement plutôt que de capturer du premier ** au
-        // dernier ** de toute la note.
-        // matchAll renvoie un itérateur de résultats de match ; m[1] est le
-        // groupe capturé (le texte entre les **), qu'on trim() pour ignorer
-        // les espaces superflus en bordure.
-        const matches = [...content.matchAll(/\*\*(.*?)\*\*/g)].map(m => m[1].trim());
+        // Amélioration du parsing : on veut EXTRAIRE les segments en **...**
+        // tout en IGNORANT les blocs de code (``` ou ~~~) et les inline code
+        // entourés par des backticks (`...`). Pour cela, on nettoie d'abord
+        // une copie du contenu en supprimant ces sections, puis on applique
+        // la regex sur le texte nettoyé. On calcule ensuite le nombre réel
+        // d'occurrences dans le contenu d'origine pour l'affichage.
+        const cleaned = content
+            // supprime les fenced code blocks ```...``` et ~~~...~~~
+            .replace(/```[\s\S]*?```/g, '')
+            .replace(/~~~[\s\S]*?~~~/g, '')
+            // supprime les inline code `...`
+            .replace(/`[^`]*`/g, '');
 
-        // Déduplication (via Set) des termes identiques, suppression des
-        // entrées vides (ex: "****" donnerait une chaîne vide), puis tri
-        // alphabétique respectant les règles de tri français (accents, etc.)
-        // grâce à localeCompare(a, b, 'fr').
+        // Capture **...** mais évite de capturer les triples *** (italic+bold)
+        // en s'assurant que la paire n'est pas suivie/précédée d'un autre '*'.
+        const boldRegex = /\*\*(?!\*)(.*?)\*\*(?!\*)/g;
+        const matches = [...cleaned.matchAll(boldRegex)].map(m => m[1].trim());
+
+        // Déduplication et tri en français comme avant.
         const uniqueMatches = [...new Set(matches)].filter(t => t.length > 0).sort((a, b) => a.localeCompare(b, 'fr'));
+
+        // Helper utilitaire pour échapper une chaîne en regex.
+        const escapeRegExp = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
         if (uniqueMatches.length === 0) {
             container.createEl('p', { text: 'Aucun mot en gras.', cls: 'pane-empty' });
@@ -217,7 +226,14 @@ class BoldIndexView extends ItemView {
             // un <a> risquerait d'être intercepté par le gestionnaire de liens
             // internes d'Obsidian (qui s'attend à un lien de type [[note]] ou
             // une URL), ce qui casserait notre propre logique de clic.
-            const item = li.createEl('span', { text: term, cls: 'bold-index-item' });
+            // Calcule le nombre d'occurrences EXACTES dans le contenu
+            // d'origine (on recherche la chaîne littérale `**term**`).
+            const literal = `**${term}**`;
+            const countRegex = new RegExp(escapeRegExp(literal), 'g');
+            const count = (content.match(countRegex) || []).length;
+
+            const itemText = count > 1 ? `${term} (${count})` : term;
+            const item = li.createEl('span', { text: itemText, cls: 'bold-index-item' });
             item.style.cursor = 'pointer';
             // var(--text-accent) : variable CSS du thème Obsidian, pour que
             // la couleur s'adapte automatiquement au thème clair/sombre choisi.
