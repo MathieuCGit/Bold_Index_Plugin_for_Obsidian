@@ -41,44 +41,73 @@ export class IndexView {
     container.empty();
     container.createEl('h4', { text: title });
 
-    // The action bar keeps the export and open actions aligned to the right and keeps the panel
-    // visually compact while still exposing both primary operations for the user.
-    const actionsBar = container.createEl('div', { cls: 'bold-index-actions-bar' });
-    actionsBar.style.display = 'flex';
-    actionsBar.style.justifyContent = 'flex-end';
-    actionsBar.style.alignItems = 'center';
-    actionsBar.style.gap = '6px';
-    actionsBar.style.marginBottom = '8px';
-
-    const exportButton = actionsBar.createEl('button', { text: 'Exporter .md' });
-    exportButton.type = 'button';
-    exportButton.addEventListener('click', () => onExport?.());
-
-    const openExportButton = actionsBar.createEl('button', { text: 'Ouvrir le fichier' });
-    openExportButton.type = 'button';
-    openExportButton.addEventListener('click', () => onOpenExport?.());
+    // The controls are grouped in one compact toolbar so the sidebar uses space efficiently while
+    // keeping both the format filters and export actions visible without requiring multiple rows.
+    const toolbar = container.createEl('div', { cls: 'bold-index-toolbar' });
+    toolbar.style.display = 'flex';
+    toolbar.style.alignItems = 'center';
+    toolbar.style.justifyContent = 'space-between';
+    toolbar.style.gap = '6px';
+    toolbar.style.marginBottom = '8px';
 
     // The mode toggles are cumulative: the user can enable or disable any combination of bold,
     // italic, and highlight. This is necessary because the parser supports multiple markdown
     // emphasis styles at the same time and the panel should reflect that behavior directly.
-    const modeBar = container.createEl('div', { cls: 'bold-index-mode-bar' });
+    const modeBar = toolbar.createEl('div', { cls: 'bold-index-mode-bar' });
     modeBar.style.display = 'flex';
     modeBar.style.gap = '6px';
-    modeBar.style.marginBottom = '8px';
     modeBar.style.flexWrap = 'wrap';
+
+    const actionsBar = toolbar.createEl('div', { cls: 'bold-index-actions-bar' });
+    actionsBar.style.display = 'flex';
+    actionsBar.style.alignItems = 'center';
+    actionsBar.style.gap = '6px';
+
+    // These action buttons are intentionally compact because they are secondary controls compared to
+    // the main filter toggles. Keeping them small leaves more space for the actual index list and the
+    // search field while still making the export actions visible when needed.
+    const exportButton = actionsBar.createEl('button', { text: 'Export' });
+    exportButton.type = 'button';
+    exportButton.title = 'Export to Markdown';
+    exportButton.style.minWidth = '52px';
+    exportButton.style.height = '28px';
+    exportButton.style.padding = '0 8px';
+    exportButton.addEventListener('click', () => onExport?.());
+
+    const openExportButton = actionsBar.createEl('button', { text: 'Open' });
+    openExportButton.type = 'button';
+    openExportButton.title = 'Open exported file';
+    openExportButton.style.minWidth = '52px';
+    openExportButton.style.height = '28px';
+    openExportButton.style.padding = '0 8px';
+    openExportButton.addEventListener('click', () => onOpenExport?.());
 
     const modeButtons = new Map<FormatMode, any>();
 
+    // The format buttons are reduced to single-letter icons to match the compact visual language of
+    // editing tools while still keeping the exact semantic meaning visible through the tooltip.
     ALL_FORMAT_MODES.forEach((mode) => {
+      const label = mode === 'bold' ? 'B' : mode === 'italic' ? 'I' : 'H';
+      const title = mode === 'bold' ? 'Bold' : mode === 'italic' ? 'Italic' : 'Highlight';
       const button = modeBar.createEl('button', {
-        text: mode === 'bold' ? 'Bold' : mode === 'italic' ? 'Italic' : 'Highlight',
+        text: label,
         cls: 'mod-cta'
       });
+      button.title = title;
 
       const isActive = selectedModes.includes(mode);
       button.setAttribute('aria-pressed', String(isActive));
       button.style.opacity = isActive ? '1' : '0.6';
       button.style.border = isActive ? '1px solid var(--interactive-accent)' : '1px solid var(--background-modifier-border)';
+      button.style.minWidth = '32px';
+      button.style.width = '32px';
+      button.style.height = '32px';
+      button.style.padding = '0';
+      button.style.fontWeight = mode === 'bold' ? '700' : '500';
+      button.style.fontStyle = mode === 'italic' ? 'italic' : 'normal';
+      button.style.backgroundColor = mode === 'highlight' && isActive ? 'var(--text-highlight-bg)' : undefined;
+      button.style.color = mode === 'highlight' ? 'var(--text-normal)' : undefined;
+      button.style.fontSize = '14px';
 
       modeButtons.set(mode, button);
 
