@@ -1,22 +1,31 @@
-// Represents a single detected occurrence of a formatted term inside the note.
+// A single highlighted occurrence in the current note.
+// This model is intentionally small and lightweight because it is reused both by the
+// sidebar UI and by the markdown export routine. Each match retains the original textual
+// value, the byte offset inside the file, and the line number used for navigation.
 export type BoldOccurrence = {
   term: string;
   offset: number;
   line: number;
 };
 
-// Represents one formatted term and all of its recorded positions in the note.
+// One normalized entry in the index. The same term can appear several times in the same file,
+// so we group all of its occurrences under a single bucket and keep them ordered from top to bottom.
 export type BoldIndexEntry = {
   term: string;
   occurrences: BoldOccurrence[];
 };
 
+// The plugin supports three visual emphasis styles. The selected format modes determine which
+// markdown patterns are considered valid candidates when building the index.
 export type FormatMode = 'bold' | 'italic' | 'highlight';
 
+// A fixed list of supported emphasis modes. The sidebar exposes them as cumulative filters,
+// which means the user can combine bold, italic, and highlight entries in the same index.
 export const ALL_FORMAT_MODES: FormatMode[] = ['bold', 'italic', 'highlight'];
 
-// Filters the index entries according to the user query typed in the sidebar.
-// We compare in lowercase to keep the search natural and insensitive to case.
+// Filters the already-built index entries using the current live search query from the sidebar.
+// The comparison is intentionally case-insensitive so the user can type the search term
+// naturally without worrying about the original capitalization in the note.
 export function filterBoldIndexEntries(entries: BoldIndexEntry[], query: string): BoldIndexEntry[] {
   const normalizedQuery = query.trim().toLowerCase();
   if (!normalizedQuery) {
@@ -26,13 +35,32 @@ export function filterBoldIndexEntries(entries: BoldIndexEntry[], query: string)
   return entries.filter((entry) => entry.term.toLowerCase().includes(normalizedQuery));
 }
 
-// Code blocks and inline code should not contribute to the index because they are code examples, not note content.
+// Creates the markdown export document for the selected note.
+// This function is deliberately simple and deterministic: it converts the index into a
+// readable bullet list where each item contains the term itself and the line numbers where
+// it occurred. The exported document is saved alongside the current note in the vault.
+export function buildMarkdownIndexDocument(title: string, entries: BoldIndexEntry[]): string {
+  const lines = entries.map((entry) => {
+    const numbers = entry.occurrences.map((occurrence) => occurrence.line).join(', ');
+    return `- ${entry.term}: ${numbers}`;
+  });
+
+  const content = lines.length > 0 ? lines.join('\n') : 'Aucun terme indexé.';
+  return `# Index lexical - ${title}\n\n${content}\n`;
+}
+
+// Markdown code fences and inline code should never appear in the lexical index because they are
+// technical artifacts, not concept markers. These patterns are used to define regions that must
+// be ignored while scanning the current file.
 const CODE_BLOCK_PATTERNS = [
   /```[\s\S]*?```/g,
   /~~~[\s\S]*?~~~/g,
   /`[^`]*`/g
 ];
 
+// Regex rules used to detect the supported emphasis styles in a note.
+// Each entry is generic enough to work on plain markdown while remaining compatible with the
+// plugin’s idea of a lexical navigation index.
 const FORMAT_PATTERNS: Record<FormatMode, RegExp[]> = {
   bold: [/\*\*(?!\*)(.*?)\*\*(?!\*)/g],
   italic: [
@@ -42,11 +70,13 @@ const FORMAT_PATTERNS: Record<FormatMode, RegExp[]> = {
   highlight: [/==(.*?)==/g]
 };
 
-// Builds a sorted index of all formatted terms present in markdown content.
-// Each match is attached to its offset in the document and its line number for later navigation.
+// Builds a sorted index of all formatted terms present in the markdown content.
+// The parser walks the document, filters out code artifacts, groups repeated occurrences,
+// and returns a stable alphabetical structure that the sidebar UI can render and the export
+// feature can write to a markdown file.
 export function buildBoldIndex(content: string, modes: FormatMode[] = ['bold']): BoldIndexEntry[] {
-  // Collect ranges to ignore when scanning the document.
-  // This prevents code snippets from creating false positives in the sidebar.
+  // Ignore ranges are computed in advance so we can cheaply reject matches that belong to code
+  // snippets or inline code blocks. This protects the index from obvious false positives.
   const ignoreRanges: [number, number][] = [];
 
   for (const pattern of CODE_BLOCK_PATTERNS) {
@@ -57,7 +87,7 @@ export function buildBoldIndex(content: string, modes: FormatMode[] = ['bold']):
     }
   }
 
-  // Returns true when a text position falls inside a code block or inline code region.
+  // A helper function that answers whether a given offset lies inside one of the ignored ranges.
   const isIgnored = (pos: number) => ignoreRanges.some(([start, end]) => pos >= start && pos < end);
   const grouped = new Map<string, BoldOccurrence[]>();
 
@@ -76,7 +106,8 @@ export function buildBoldIndex(content: string, modes: FormatMode[] = ['bold']):
       const term = (match[1] ?? '').trim();
       if (!term) continue;
 
-      // Compute the line number from the document prefix before the match.
+      // Determine the line number from the content preceding the match. This value is later
+      // used to create clickable references in the sidebar UI.
       const line = content.slice(0, offset).split('\n').length;
       const list = grouped.get(term) ?? [];
       list.push({ term, offset, line });
@@ -85,14 +116,15 @@ export function buildBoldIndex(content: string, modes: FormatMode[] = ['bold']):
   }
 
   return [...grouped.entries()]
-    // Sort by term alphabetically in French locale to keep the UI stable and readable.
+    // Sort alphabetically using French locale so the resulting list feels natural in the UI and
+    // is stable across runs without depending on runtime-specific sorting behavior.
     .sort(([left], [right]) => left.localeCompare(right, 'fr'))
     .map(([term, occurrences]) => ({
       term,
       occurrences: occurrences
         // Keep navigation order consistent from top to bottom of the note.
         .sort((a, b) => a.line - b.line || a.offset - b.offset)
-        // Avoid duplicates on the same line to keep each formatted term readable in the list.
+        // The UI is easier to read when a single term only shows one line reference per line.
         .filter((occurrence, index, source) => {
           const previous = source[index - 1];
           return !previous || previous.line !== occurrence.line;

@@ -1,35 +1,66 @@
 import { ALL_FORMAT_MODES, BoldIndexEntry, filterBoldIndexEntries, FormatMode } from '../domain/markdownIndex';
 
-// Called when the user clicks a line number associated with a formatted term in the sidebar.
+// This callback is invoked when the user clicks one of the line numbers displayed next to a term.
+// The offset is the exact position in the markdown document, and the length is used to select the
+// matching emphasized fragment in the editor so the user lands exactly on the relevant text.
 export type NavigationCallback = (offset: number, length: number) => void;
 
+// This callback is triggered whenever the user toggles one of the format filters in the sidebar.
+// It allows the parent controller to refresh the index using the newly selected emphasis modes.
 export type IndexModeChangeCallback = (modes: FormatMode[]) => void;
 
-// Renders the sidebar content for the formatted index.
-// It is responsible for the search field, the filters, the empty state, and the visible list of terms and occurrences.
+// This class is responsible for all rendering work inside the custom Obsidian view.
+// It creates the filter buttons, the search box, the empty state, and the clickable list of terms
+// that are extracted from the current note. It keeps the DOM logic separate from the parsing logic,
+// which makes the code far easier to reason about and test.
 export class IndexView {
   constructor(private readonly app: any) {}
 
-  // Shows the empty-state message when there is no note or no matching formatted term in the current file.
+  // Displays a friendly message when there is no active file or when the current note does not
+  // contain any matches for the selected emphasis modes. This keeps the sidebar explicit instead of
+  // leaving the user with a blank panel.
   renderEmpty(container: any, message: string): void {
     container.empty();
     container.createEl('p', { text: message, cls: 'pane-empty' });
   }
 
-  // Main rendering function for the whole panel.
-  // It creates the top filter buttons, search input, and redraws the list based on the current query and selected modes.
+  // Renders the full sidebar interface for the current note.
+  // The panel begins with the note title, then the export button, then the mode filters, then the
+  // live search input and the result list. We pass callbacks to keep the UI decoupled from the
+  // controller and avoid hard-coding the actual navigation logic directly in the DOM layer.
   render(
     container: any,
     title: string,
     entries: BoldIndexEntry[],
     onNavigate: NavigationCallback,
     selectedModes: FormatMode[] = ['bold'],
-    onModeChange?: IndexModeChangeCallback
+    onModeChange?: IndexModeChangeCallback,
+    onExport?: () => void,
+    onOpenExport?: () => void
   ): void {
     container.empty();
     container.createEl('h4', { text: title });
 
-    // Toggle buttons displayed above the list. They are cumulative: several modes can be active at the same time.
+    // The action bar keeps the export and open actions aligned to the right and keeps the panel
+    // visually compact while still exposing both primary operations for the user.
+    const actionsBar = container.createEl('div', { cls: 'bold-index-actions-bar' });
+    actionsBar.style.display = 'flex';
+    actionsBar.style.justifyContent = 'flex-end';
+    actionsBar.style.alignItems = 'center';
+    actionsBar.style.gap = '6px';
+    actionsBar.style.marginBottom = '8px';
+
+    const exportButton = actionsBar.createEl('button', { text: 'Exporter .md' });
+    exportButton.type = 'button';
+    exportButton.addEventListener('click', () => onExport?.());
+
+    const openExportButton = actionsBar.createEl('button', { text: 'Ouvrir le fichier' });
+    openExportButton.type = 'button';
+    openExportButton.addEventListener('click', () => onOpenExport?.());
+
+    // The mode toggles are cumulative: the user can enable or disable any combination of bold,
+    // italic, and highlight. This is necessary because the parser supports multiple markdown
+    // emphasis styles at the same time and the panel should reflect that behavior directly.
     const modeBar = container.createEl('div', { cls: 'bold-index-mode-bar' });
     modeBar.style.display = 'flex';
     modeBar.style.gap = '6px';
@@ -51,6 +82,8 @@ export class IndexView {
 
       modeButtons.set(mode, button);
 
+      // Toggling a filter updates the active set of modes. If all filters were removed, the plugin
+      // preserves a sensible default by re-enabling bold mode to avoid an empty and confusing index.
       button.addEventListener('click', () => {
         const currentModes = new Set(selectedModes);
         if (currentModes.has(mode)) {
@@ -75,7 +108,8 @@ export class IndexView {
       });
     });
 
-    // Search box displayed above the index list.
+    // The search box gives the user a quick way to narrow the index without rebuilding the full note.
+    // It filters the list in real time using the underlying data already computed in the controller.
     const searchInput = container.createEl('input', {
       type: 'text',
       cls: 'bold-index-search-input',
@@ -85,7 +119,8 @@ export class IndexView {
     searchInput.style.boxSizing = 'border-box';
     searchInput.style.marginBottom = '8px';
 
-    // This container is reused when the query changes so that the list can be refreshed without re-rendering the whole panel.
+    // The result container is kept separate so the code can rerender only the list when the query
+    // changes instead of recreating a large part of the whole panel each time.
     const resultsContainer = container.createEl('div');
 
     const renderEntries = (query: string): void => {
@@ -125,6 +160,9 @@ export class IndexView {
           line.style.textDecoration = 'underline';
           line.style.marginRight = '6px';
 
+          // Each line number acts as a clickable anchor in the note. When selected, it jumps to the
+          // exact text range matching the emphasis pattern in the editor, which makes the sidebar
+          // behave more like a true navigation index than a simple list.
           line.addEventListener('click', (event: any) => {
             event.stopPropagation();
             const length = entry.term.length + 4;
@@ -139,7 +177,8 @@ export class IndexView {
       });
     };
 
-    // Live filtering: each keystroke updates the visible list.
+    // The live filter is updated on every keystroke so the user sees the list narrow in real time
+    // without needing to reload or re-open the panel.
     searchInput.addEventListener('input', (event: any) => {
       renderEntries(event.target.value ?? '');
     });

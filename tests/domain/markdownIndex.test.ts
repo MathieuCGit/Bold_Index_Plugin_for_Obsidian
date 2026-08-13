@@ -1,9 +1,26 @@
 import { describe, expect, it } from 'vitest';
-import { buildBoldIndex, filterBoldIndexEntries } from '../../src/domain/markdownIndex';
+import { buildBoldIndex, buildMarkdownIndexDocument, filterBoldIndexEntries } from '../../src/domain/markdownIndex';
 
 // This suite covers the core parsing and filtering behavior of the bold index.
 // It is intentionally kept close to the domain logic so future regressions are easy to diagnose.
 describe('buildBoldIndex', () => {
+  it('exports the index as a markdown document with heading and term entries', () => {
+    const entries = [
+      {
+        term: 'Alpha',
+        occurrences: [{ term: 'Alpha', offset: 0, line: 2 }, { term: 'Alpha', offset: 30, line: 4 }]
+      },
+      {
+        term: 'Beta',
+        occurrences: [{ term: 'Beta', offset: 18, line: 3 }]
+      }
+    ];
+
+    expect(buildMarkdownIndexDocument('Ma note', entries)).toBe(
+      '# Index lexical - Ma note\n\n- Alpha: 2, 4\n- Beta: 3\n'
+    );
+  });
+
   // The parser must extract all bold fragments, merge duplicates, and keep the final list alphabetized.
   it('extracts bold terms and keeps them sorted alphabetically', () => {
     const content = '# Notes\n**Alpha** is here.\n**Beta** and **Alpha** appear again.\n';
