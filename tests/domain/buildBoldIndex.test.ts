@@ -52,4 +52,35 @@ describe('buildBoldIndex', () => {
       }
     ]);
   });
+
+  it('supports cumulative formatting modes across bold, italic, and highlight', () => {
+    const content = '**Bold** and *Italic* and ==Highlight==\n**BoldTwo** and _ItalicTwo_ and ==HighlightTwo==\n';
+
+    expect(buildBoldIndex(content, ['bold', 'italic', 'highlight'])).toEqual([
+      {
+        term: 'Bold',
+        occurrences: [{ term: 'Bold', offset: 0, line: 1 }]
+      },
+      {
+        term: 'BoldTwo',
+        occurrences: [{ term: 'BoldTwo', offset: 40, line: 2 }]
+      },
+      {
+        term: 'Highlight',
+        occurrences: [{ term: 'Highlight', offset: 26, line: 1 }]
+      },
+      {
+        term: 'HighlightTwo',
+        occurrences: [{ term: 'HighlightTwo', offset: 72, line: 2 }]
+      },
+      {
+        term: 'Italic',
+        occurrences: [{ term: 'Italic', offset: 13, line: 1 }]
+      },
+      {
+        term: 'ItalicTwo',
+        occurrences: [{ term: 'ItalicTwo', offset: 56, line: 2 }]
+      }
+    ]);
+  });
 });
