@@ -1,19 +1,26 @@
 import { BoldIndexEntry, filterBoldIndexEntries } from '../domain/markdownIndex';
 
+// Called when the user clicks a line number associated with a bold term in the sidebar.
 export type NavigationCallback = (offset: number, length: number) => void;
 
+// Renders the sidebar content for the bold index.
+// It is responsible for the search field, the empty state, and the visible list of terms and occurrences.
 export class IndexView {
   constructor(private readonly app: any) {}
 
+  // Shows the empty-state message when there is no note or no bold term in the current file.
   renderEmpty(container: any, message: string): void {
     container.empty();
     container.createEl('p', { text: message, cls: 'pane-empty' });
   }
 
+  // Main rendering function for the whole panel.
+  // It creates the top search input and redraws the list based on the current query.
   render(container: any, title: string, entries: BoldIndexEntry[], onNavigate: NavigationCallback): void {
     container.empty();
     container.createEl('h4', { text: title });
 
+    // Search box displayed above the index list.
     const searchInput = container.createEl('input', {
       type: 'text',
       cls: 'bold-index-search-input',
@@ -23,6 +30,7 @@ export class IndexView {
     searchInput.style.boxSizing = 'border-box';
     searchInput.style.marginBottom = '8px';
 
+    // This container is reused when the query changes so that the list can be refreshed without re-rendering the whole panel.
     const resultsContainer = container.createEl('div');
 
     const renderEntries = (query: string): void => {
@@ -64,6 +72,7 @@ export class IndexView {
 
           line.addEventListener('click', (event: any) => {
             event.stopPropagation();
+            // The length intentionally includes the markdown wrapper around the bold term.
             const length = entry.term.length + 4;
             onNavigate(occurrence.offset, length);
           });
@@ -76,6 +85,7 @@ export class IndexView {
       });
     };
 
+    // Live filtering: each keystroke updates the visible list.
     searchInput.addEventListener('input', (event: any) => {
       renderEntries(event.target.value ?? '');
     });
