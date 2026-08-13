@@ -2,16 +2,22 @@
 
 ## 1) What the plugin does
 
-This plugin adds a sidebar panel in Obsidian that reads the current note and builds a clickable index of all bold terms found in it.
+This plugin adds a sidebar panel in Obsidian that reads the current note and builds a clickable index of formatted terms found in it.
+
+It currently supports multiple markdown emphasis modes simultaneously:
+
+- bold: `**word**`
+- italic: `*word*` or `_word_`
+- highlight: `==word==`
 
 Example:
 
-- You write: `**Project**`, `**Planning**`, `**Architecture**`
-- The plugin scans the note and displays them in a list
+- You write: `**Project**`, `*Planning*`, `==Architecture==`
+- The plugin scans the note and displays the matching terms in a list
 - Clicking a term brings you directly to that location in the note
 - The editor scrolls and selects the matching section
 
-In practice, the plugin is useful when you want to quickly navigate a long note that contains many important concepts marked in bold.
+In practice, the plugin is useful when you want to quickly navigate a long note that contains many important concepts marked with emphasis.
 
 It is especially helpful for notes that behave like glossaries, concept maps, planning pages, or knowledge bases.
 
@@ -23,7 +29,7 @@ It is especially helpful for notes that behave like glossaries, concept maps, pl
         v
     Plugin reads active note
         |
-        | finds all **...** patterns
+        | finds all selected formatting patterns
         v
     Builds alphabetical list of terms
         |
@@ -34,10 +40,24 @@ It is especially helpful for notes that behave like glossaries, concept maps, pl
 ### Current behavior
 
 - Reads the active Markdown file only
-- Ignores bold text inside code blocks and inline code
-- Deduplicates repeated entries
+- Ignores formatted text inside code blocks and inline code
+- Supports cumulative mode selection: Bold + Italic + Highlight can be active together
+- Deduplicates repeated entries per line
 - Shows the line number for each term occurrence
 - Lets the user click a line to jump to the exact location in the editor
+- Includes a live text filter above the list to narrow results quickly
+
+### User controls
+
+The sidebar includes a set of toggle buttons above the list:
+
+- Bold
+- Italic
+- Highlight
+
+These buttons are cumulative, so you can activate several modes at once. For example, if Bold and Italic are enabled, the index will show both bold and italic entries together.
+
+The search field filters the visible list in real time by term name, without changing the underlying index.
 
 ---
 
@@ -82,7 +102,8 @@ Package scripts:
     |       |-- IndexView.ts
     |-- tests/
         |-- domain/
-            |-- markdownIndex.test.ts
+            |-- buildBoldIndex.test.ts
+            |-- filterBoldIndexEntries.test.ts
 
 ### Architectural approach
 
@@ -91,7 +112,7 @@ The codebase follows a lightweight separation of concerns inspired by MVC and do
 - Domain layer
   - Handles text analysis and index construction
   - Pure logic, no DOM, no Obsidian API dependency
-  - Example: `buildBoldIndex(content)`
+  - Example: `buildBoldIndex(content, modes)`
 
 - Application layer
   - Coordinates the flow between data and UI
@@ -131,20 +152,22 @@ The codebase follows a lightweight separation of concerns inspired by MVC and do
     +-----------------------+
     | IndexController       |
     | fetches note content  |
+    | selects current modes |
     | asks domain logic     |
     +----------+------------+
                |
                v
     +-----------------------+
     | markdownIndex.ts      |
-    | parse bold terms      |
+    | parse selected modes  |
     | build index entries   |
     +----------+------------+
                |
                v
     +-----------------------+
     | IndexView             |
-    | render list           |
+    | render mode toggles   |
+    | render search field   |
     | clickable entries     |
     +-----------------------+
 
@@ -157,11 +180,12 @@ This is the business logic layer.
 It does the following:
 
 - scans raw Markdown text
-- detects `**...**` patterns
+- detects selected formatting patterns such as `**...**`, `*...*`, `_..._`, and `==...==`
 - ignores content inside code blocks
 - ignores inline code fragments
 - groups terms by occurrence
-- sorts them alphabetically
+- supports cumulative active modes via `FormatMode[]`
+- sorts terms alphabetically
 - keeps only the first occurrence per line for display clarity
 
 This part is intentionally isolated so it can be tested without relying on Obsidian.
@@ -174,6 +198,8 @@ It is responsible for:
 
 - clearing the container
 - creating the title
+- creating the mode toggle buttons
+- creating the search input
 - creating the list of terms
 - creating clickable entries for each line number
 - sending navigation events to the controller
@@ -186,6 +212,7 @@ It:
 
 - gets the current file from the workspace
 - reads the file content
+- keeps the current selected formatting modes
 - asks the domain code to build the index
 - passes the prepared data to the view
 - handles navigation callbacks
@@ -198,7 +225,7 @@ It helps because:
 
 - domain logic stays isolated and easier to test
 - UI rendering is separated from data processing
-- future filters and buttons can be added in a consistent way
+- format modes can be extended without rewriting the whole flow
 - the project remains readable for new contributors
 
 ### Testing strategy
@@ -207,15 +234,18 @@ Unit tests are focused on the pure domain logic, especially the parser and the f
 
 The tests live in:
 
-- `tests/domain/markdownIndex.test.ts`
+- `tests/domain/buildBoldIndex.test.ts`
+- `tests/domain/filterBoldIndexEntries.test.ts`
 
 They validate:
 
-- extraction of bold terms
+- extraction of formatted terms
 - ordering of results
 - handling of code blocks
 - empty input behavior
 - duplicate handling on the same line
+- cumulative mode behavior for bold, italic, and highlight
+- case-insensitive filtering by search query
 
 ### Notes
 
