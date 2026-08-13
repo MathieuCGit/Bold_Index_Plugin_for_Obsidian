@@ -9,6 +9,15 @@ export type BoldIndexEntry = {
   occurrences: BoldOccurrence[];
 };
 
+export function filterBoldIndexEntries(entries: BoldIndexEntry[], query: string): BoldIndexEntry[] {
+  const normalizedQuery = query.trim().toLowerCase();
+  if (!normalizedQuery) {
+    return entries;
+  }
+
+  return entries.filter((entry) => entry.term.toLowerCase().includes(normalizedQuery));
+}
+
 const BOLD_REGEX = /\*\*(?!\*)(.*?)\*\*(?!\*)/g;
 const CODE_BLOCK_PATTERNS = [
   /```[\s\S]*?```/g,

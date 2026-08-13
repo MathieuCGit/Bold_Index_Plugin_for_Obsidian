@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildBoldIndex } from '../../src/domain/markdownIndex';
+import { buildBoldIndex, filterBoldIndexEntries } from '../../src/domain/markdownIndex';
 
 describe('buildBoldIndex', () => {
   it('extracts bold terms and keeps them sorted alphabetically', () => {
@@ -41,6 +41,21 @@ describe('buildBoldIndex', () => {
           { term: 'Same', offset: 48, line: 2 }
         ]
       }
+    ]);
+  });
+
+  it('filters entries by a text query ignoring case', () => {
+    const entries = [
+      { term: 'Alpha', occurrences: [{ term: 'Alpha', offset: 0, line: 1 }] },
+      { term: 'Beta', occurrences: [{ term: 'Beta', offset: 10, line: 1 }] },
+      { term: 'Gamma', occurrences: [{ term: 'Gamma', offset: 20, line: 1 }] }
+    ];
+
+    expect(filterBoldIndexEntries(entries, 'ta')).toEqual([
+      { term: 'Beta', occurrences: [{ term: 'Beta', offset: 10, line: 1 }] }
+    ]);
+    expect(filterBoldIndexEntries(entries, 'GAM')).toEqual([
+      { term: 'Gamma', occurrences: [{ term: 'Gamma', offset: 20, line: 1 }] }
     ]);
   });
 });
