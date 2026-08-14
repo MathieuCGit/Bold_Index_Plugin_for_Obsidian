@@ -79,7 +79,8 @@ Choose which formatting styles to index:
 
 You can combine any mix. If you disable all modes, bold automatically re-enables as a safety default.
 
-![Sidebar with B, I, H filter buttons - placeholder]
+<img width="1239" height="875" alt="index-navigation" src="https://github.com/user-attachments/assets/22e24d10-33ec-4419-ba16-20a196a6f723" />
+
 
 ### 2. Smart Sorting
 
@@ -90,7 +91,7 @@ Click the **Sort** button (after B, I, H buttons) to choose how entries are orde
 
 The plugin remembers your choice across note switches.
 
-![Sort menu dropdown showing Alphabetical and By Line options - placeholder]
+<img width="942" height="480" alt="index-navigation02" src="https://github.com/user-attachments/assets/71b2207e-4ef3-4a51-9c01-2a00c5b37f1e" />
 
 ### 3. Live Search
 
@@ -99,7 +100,8 @@ Type in the search box to instantly filter results. The search is:
 - **Partial match** - "arch" finds "Architecture" and "Monarch"
 - **Instant feedback** - Results update as you type
 
-![Search input box with filtered results - placeholder]
+<img width="942" height="480" alt="index-navigation03" src="https://github.com/user-attachments/assets/7c48dc34-49b2-4248-bf94-44c4db5e2242" />
+
 
 ### 4. One-Click Navigation
 
@@ -110,7 +112,8 @@ Click any line number (e.g., "12", "18") to:
 
 This makes the sidebar act like a true glossary or index, not just a list.
 
-![Sidebar terms with clickable line numbers, editor showing selected text - placeholder]
+<img width="533" height="611" alt="image" src="https://github.com/user-attachments/assets/524bd899-68be-431f-ae57-bfdf2f473856" />
+
 
 ### 5. Export to Markdown
 
