@@ -1,254 +1,299 @@
-# Bold Index Navigation
+# 📑 Navigation Index for Obsidian
 
-## 1) What the plugin does
+**Transform long notes into instantly searchable, interactive glossaries.**
 
-This plugin adds a sidebar panel in Obsidian that reads the current note and builds a clickable index of formatted terms found in it.
+A powerful Obsidian plugin that scans your notes, builds a dynamic index of formatted terms (bold, italic, highlight), and lets you navigate to them with a single click. Perfect for knowledge bases, planning documents, and concept maps.
 
-It currently supports multiple markdown emphasis modes simultaneously:
-
-- bold: `**word**`
-- italic: `*word*` or `_word_`
-- highlight: `==word==`
-
-Example:
-
-- You write: `**Project**`, `*Planning*`, `==Architecture==`
-- The plugin scans the note and displays the matching terms in a list
-- Clicking a term brings you directly to that location in the note
-- The editor scrolls and selects the matching section
-
-In practice, the plugin is useful when you want to quickly navigate a long note that contains many important concepts marked with emphasis.
-
-It is especially helpful for notes that behave like glossaries, concept maps, planning pages, or knowledge bases.
-
-### Simple user flow
-
-    Obsidian workspace
-        |
-        | file-open / editor-change
-        v
-    Plugin reads active note
-        |
-        | finds all selected formatting patterns
-        v
-    Builds alphabetical list of terms
-        |
-        | user clicks a line or term
-        v
-    Opens the correct markdown view and focuses the highlighted location
-
-### Current behavior
-
-- Reads the active Markdown file only
-- Ignores formatted text inside code blocks and inline code
-- Supports cumulative mode selection: Bold + Italic + Highlight can be active together
-- Deduplicates repeated entries per line
-- Shows the line number for each term occurrence
-- Lets the user click a line to jump to the exact location in the editor
-- Includes a live text filter above the list to narrow results quickly
-
-### User controls
-
-The sidebar includes a set of toggle buttons above the list:
-
-- Bold
-- Italic
-- Highlight
-
-These buttons are cumulative, so you can activate several modes at once. For example, if Bold and Italic are enabled, the index will show both bold and italic entries together.
-
-The search field filters the visible list in real time by term name, without changing the underlying index.
+[🇫🇷 Version française](#) | [🐛 Report Bug](https://github.com/MathieuCGit/Index-Navgation_for_Obsidian/issues) | [⭐ Star on GitHub](https://github.com/MathieuCGit/Index-Navgation_for_Obsidian)
 
 ---
 
-## 2) For developers
+## The Problem
 
-### Dependencies
+Large, detailed notes are powerful but hard to navigate. Scrolling to find a specific concept takes time, and you often lose context about where key terms are located in your document.
 
-This project is a small Obsidian plugin built with TypeScript and bundled with esbuild.
+## The Solution
 
-Main dependencies:
+Navigation Index automatically extracts formatted terms from your note and displays them in an interactive sidebar panel. Click any term to jump directly to it, with the editor automatically selecting the exact text.
 
-- Obsidian API
-- TypeScript
-- esbuild
-- builtin-modules
-- Vitest
+---
 
-Package scripts:
+## ✨ Key Features
 
-- `npm run dev` : starts the local esbuild watch mode
-- `npm run build` : produces the bundled plugin file
-- `npm test` : runs the unit tests
+- 🎯 **Multi-format support** - Index bold, italic, and highlight formatting simultaneously
+- 🔄 **Cumulative filtering** - Toggle B, I, H buttons to show only the terms you need
+- 📍 **Instant navigation** - Click line numbers to jump directly to terms in your note
+- 🔍 **Live search** - Filter results as you type without rebuilding the index
+- 📊 **Smart sorting** - View terms alphabetically (default) or by document order (line numbers)
+- 📤 **Export to Markdown** - Save the index as a separate markdown file for sharing
+- 🚀 **Lightning fast** - Real-time updates as you edit your note
+- 🛡️ **Code-aware** - Automatically ignores formatted text inside code blocks and inline code
+- 📱 **Responsive** - Compact sidebar design that fits any workspace layout
 
-### Project structure
+---
 
-    .
-    |-- main.ts
-    |-- manifest.json
-    |-- obsidian.d.ts
-    |-- package.json
-    |-- tsconfig.json
-    |-- esbuild.config.mjs
-    |-- vitest.config.ts
-    |-- .gitignore
-    |-- src/
-    |   |-- main.ts
-    |   |-- application/
-    |   |   |-- IndexController.ts
-    |   |-- domain/
-    |   |   |-- markdownIndex.ts
-    |   |-- ui/
-    |       |-- IndexView.ts
-    |-- tests/
-        |-- domain/
-            |-- buildBoldIndex.test.ts
-            |-- filterBoldIndexEntries.test.ts
+## 🚀 Quick Start
 
-### Architectural approach
+### Installation
 
-The codebase follows a lightweight separation of concerns inspired by MVC and domain-driven organization.
+1. Open Obsidian → **Settings → Community plugins**
+2. Click **Disable Safe Mode** (if prompted)
+3. Click **Browse** and search for "**Navigation Index**"
+4. Click **Install**, then **Enable**
+5. The sidebar panel appears automatically in your workspace
 
-- Domain layer
-  - Handles text analysis and index construction
-  - Pure logic, no DOM, no Obsidian API dependency
-  - Example: `buildBoldIndex(content, modes)`
+### Your First Index
 
-- Application layer
-  - Coordinates the flow between data and UI
-  - Example: `IndexController`
+Open any note with formatted terms:
 
-- UI layer
-  - Creates the sidebar DOM and renders clickable entries
-  - Example: `IndexView`
+```markdown
+# Project Planning
 
-- Plugin bootstrap
-  - Registers the custom Obsidian view and command
-  - Example: `BoldIndexPlugin` in `src/main.ts`
+## Overview
+This project involves **three main phases**: **design**, **development**, and *deployment*.
 
-### Runtime flow
+## Key Concepts
+- **Architecture**: The system uses a microservices approach
+- *API Layer*: REST endpoints for external integration
+- ==Critical Path==: Must complete design before development
 
-    +-----------------------+
-    | Obsidian workspace    |
-    +----------+------------+
-               |
-               | file-open / editor-change
-               v
-    +-----------------------+
-    | BoldIndexPlugin       |
-    | registerView()        |
-    | addCommand()          |
-    +----------+------------+
-               |
-               v
-    +-----------------------+
-    | BoldIndexView         |
-    | onOpen()              |
-    | update()              |
-    +----------+------------+
-               |
-               | read active note
-               v
-    +-----------------------+
-    | IndexController       |
-    | fetches note content  |
-    | selects current modes |
-    | asks domain logic     |
-    +----------+------------+
-               |
-               v
-    +-----------------------+
-    | markdownIndex.ts      |
-    | parse selected modes  |
-    | build index entries   |
-    +----------+------------+
-               |
-               v
-    +-----------------------+
-    | IndexView             |
-    | render mode toggles   |
-    | render search field   |
-    | clickable entries     |
-    +-----------------------+
+## Timeline
+- **Phase 1** (weeks 1-2): Research and **planning**
+- **Phase 2** (weeks 3-8): *Implementation* and testing
+- **Phase 3** (weeks 9-10): ==Deployment== and monitoring
+```
 
-### Key responsibilities
+The plugin automatically builds an index in the sidebar with all formatted terms, ready to navigate.
 
-#### `src/domain/markdownIndex.ts`
+---
 
-This is the business logic layer.
+## 🎯 Features in Detail
 
-It does the following:
+### 1. Format Mode Filtering
 
-- scans raw Markdown text
-- detects selected formatting patterns such as `**...**`, `*...*`, `_..._`, and `==...==`
-- ignores content inside code blocks
-- ignores inline code fragments
-- groups terms by occurrence
-- supports cumulative active modes via `FormatMode[]`
-- sorts terms alphabetically
-- keeps only the first occurrence per line for display clarity
+Choose which formatting styles to index:
 
-This part is intentionally isolated so it can be tested without relying on Obsidian.
+- **B** (Bold) - `**term**`
+- **I** (Italic) - `*term*` or `_term_`
+- **H** (Highlight) - `==term==`
 
-#### `src/ui/IndexView.ts`
+You can combine any mix. If you disable all modes, bold automatically re-enables as a safety default.
 
-This file handles UI rendering.
+![Sidebar with B, I, H filter buttons - placeholder]
 
-It is responsible for:
+### 2. Smart Sorting
 
-- clearing the container
-- creating the title
-- creating the mode toggle buttons
-- creating the search input
-- creating the list of terms
-- creating clickable entries for each line number
-- sending navigation events to the controller
+Click the **Sort** button (after B, I, H buttons) to choose how entries are ordered:
 
-#### `src/application/IndexController.ts`
+- **A↓** (Alphabetical) - Natural A-Z order using French locale, default choice
+- **L↓** (By Line) - Document order, organized by where terms first appear
 
-This class coordinates interaction between the view and the domain logic.
+The plugin remembers your choice across note switches.
 
-It:
+![Sort menu dropdown showing Alphabetical and By Line options - placeholder]
 
-- gets the current file from the workspace
-- reads the file content
-- keeps the current selected formatting modes
-- asks the domain code to build the index
-- passes the prepared data to the view
-- handles navigation callbacks
+### 3. Live Search
 
-### Why this structure is useful
+Type in the search box to instantly filter results. The search is:
+- **Case-insensitive** - Type naturally
+- **Partial match** - "arch" finds "Architecture" and "Monarch"
+- **Instant feedback** - Results update as you type
 
-This small modular layout keeps the project maintainable as it grows.
+![Search input box with filtered results - placeholder]
 
-It helps because:
+### 4. One-Click Navigation
 
-- domain logic stays isolated and easier to test
-- UI rendering is separated from data processing
-- format modes can be extended without rewriting the whole flow
-- the project remains readable for new contributors
+Click any line number (e.g., "12", "18") to:
+- Jump to that location in your note
+- Automatically select the exact highlighted term
+- Scroll the editor to keep it in view
 
-### Testing strategy
+This makes the sidebar act like a true glossary or index, not just a list.
 
-Unit tests are focused on the pure domain logic, especially the parser and the filtering rules.
+![Sidebar terms with clickable line numbers, editor showing selected text - placeholder]
 
-The tests live in:
+### 5. Export to Markdown
 
-- `tests/domain/buildBoldIndex.test.ts`
-- `tests/domain/filterBoldIndexEntries.test.ts`
+Click **Export** to save the current index as a new markdown file alongside your note:
 
-They validate:
+```markdown
+# Index lexical - Project Planning
 
-- extraction of formatted terms
-- ordering of results
-- handling of code blocks
-- empty input behavior
-- duplicate handling on the same line
-- cumulative mode behavior for bold, italic, and highlight
-- case-insensitive filtering by search query
+- Architecture: 8
+- Critical Path: 12
+- Deployment: 9, 18
+- Design: 3, 14
+- Development: 3
+- etc...
+```
 
-### Notes
+Click **Open** to immediately view the exported file. Perfect for:
+- Creating reference documents
+- Sharing glossaries with teammates
+- Archiving snapshots of your note structure
 
-This plugin is intentionally lightweight and focused. It does not try to be a full note index engine; it only extracts and exposes bold terms from the current file.
+---
 
-That choice keeps the code simple, fast, and easy to extend.
+## 📖 How It Works
+
+### The Flow
+
+```
+You open/edit a note
+        ↓
+Plugin scans markdown content
+        ↓
+Filters out code blocks & inline code
+        ↓
+Extracts formatted terms (**bold**, *italic*, ==highlight==)
+        ↓
+Groups repeated terms + deduplicates per line
+        ↓
+Sorts according to your preference (alphabetical or by line)
+        ↓
+Displays in interactive sidebar panel
+        ↓
+You click a term → editor jumps to exact location
+```
+
+### Smart Handling
+
+- **Code protection**: Formatted text inside backticks or code blocks is ignored
+- **Deduplication**: Only one line reference per term per line (cleaner display)
+- **Line tracking**: Each occurrence preserves exact line number for navigation
+- **Performance**: Real-time updates even on large notes
+
+---
+
+## 🛠️ Development
+
+### Building from Source
+
+```bash
+# Clone repository
+git clone https://github.com/MathieuCGit/Index-Navgation_for_Obsidian.git
+cd Index-Navgation_for_Obsidian
+
+# Install dependencies
+npm install
+
+# Build plugin for development
+npm run dev
+
+# Build for production
+npm run build
+
+# Run test suite
+npm test
+```
+
+### Project Structure
+
+```
+src/
+├── main.ts                 # Plugin entry point & Obsidian lifecycle
+├── application/
+│   └── IndexController.ts  # Orchestrates logic, manages state (modes, sort preference)
+├── domain/
+│   └── markdownIndex.ts    # Core parsing and sorting logic
+│       ├── buildBoldIndex()           # Parse markdown & extract terms
+│       ├── filterBoldIndexEntries()   # Filter by search query
+│       ├── sortBoldIndexEntries()     # Alphabetical or by-line sorting
+│       └── buildMarkdownIndexDocument() # Generate export markdown
+└── ui/
+    └── IndexView.ts        # DOM rendering & event handling
+
+tests/
+├── domain/
+│   ├── markdownIndex.test.ts      # Parser, filter, export tests
+│   ├── buildBoldIndex.test.ts     # Index building tests
+│   ├── filterBoldIndexEntries.test.ts
+│   └── sortBoldIndex.test.ts      # Sort functionality (30+ tests)
+└── vitest.config.ts        # Test configuration
+```
+
+### Architecture Principles
+
+- **Separation of concerns**: Domain logic (parsing, sorting) independent from UI and Obsidian APIs
+- **Testability**: Core functions are pure, with no side effects
+- **Defensive programming**: Handles edge cases (empty files, no occurrences, malformed markdown)
+- **Performance**: Real-time updates without rebuilding entire index on every keystroke
+- **Extensibility**: Easy to add new sort modes, format types, or export formats
+
+### Recent Additions (v1.2.0+)
+
+- ✨ **Sort functionality** - Toggle between alphabetical and document-order sorting
+- 🔄 **Persistent sort preference** - Remember user's choice across sessions
+- 📊 **Comprehensive sorting tests** - 30+ unit tests covering edge cases and large datasets
+- 🎯 **Defensive sort handling** - Graceful fallback if unexpected sort mode is used
+
+### Testing
+
+The project includes a comprehensive test suite using **Vitest**:
+
+```bash
+# Run all tests
+npm test
+
+# Run tests in watch mode (development)
+npm run test:watch
+```
+
+**Current coverage:**
+- Parser logic (buildBoldIndex)
+- Filter functionality (search + mode selection)
+- Sort functionality (alphabetical + by-line + edge cases)
+- Export generation
+- Edge cases (empty files, duplicates, code blocks)
+
+### Adding New Features
+
+When extending the plugin:
+
+1. **Domain logic first** - Write parsing/logic functions in `domain/markdownIndex.ts`
+2. **Add tests** - Create corresponding test files in `tests/domain/`
+3. **UI layer last** - Update `ui/IndexView.ts` for rendering
+4. **Update controller** - Wire up callbacks in `application/IndexController.ts`
+
+---
+
+## 🤝 Contributing
+
+Contributions welcome! Whether you're:
+- 🐛 Reporting bugs
+- ✨ Suggesting features
+- 🔧 Fixing issues
+- 📚 Improving documentation
+
+**Steps:**
+
+1. [Fork the repository](https://github.com/MathieuCGit/Index-Navgation_for_Obsidian/fork)
+2. Create a branch: `git checkout -b feature/your-idea`
+3. Make changes and add tests
+4. Run `npm test` and `npm run build` to verify
+5. Submit a pull request
+
+---
+
+## 📝 License
+
+This plugin is released under the **GPL-3.0 License**. See [LICENSE](LICENSE) for details.
+
+---
+
+## 🙏 Acknowledgments
+
+Built with dedication for the Obsidian community.
+
+**Author:** [Mathieu CONAN](https://github.com/MathieuCGit)
+
+Enjoying Navigation Index? ⭐ [Star the repository](https://github.com/MathieuCGit/Index-Navgation_for_Obsidian) to show your support!
+
+---
+
+## Quick Links
+
+- 📖 [Issues & Discussions](https://github.com/MathieuCGit/Index-Navgation_for_Obsidian/issues)
+- 💾 [Source Code](https://github.com/MathieuCGit/Index-Navgation_for_Obsidian)
+- 🐛 [Bug Reports](https://github.com/MathieuCGit/Index-Navgation_for_Obsidian/issues)
+- 📮 [Feature Requests](https://github.com/MathieuCGit/Index-Navgation_for_Obsidian/discussions)
