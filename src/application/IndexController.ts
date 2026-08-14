@@ -1,5 +1,5 @@
-import { buildBoldIndex, BoldIndexEntry, buildMarkdownIndexDocument, FormatMode } from '../domain/markdownIndex';
-import { IndexView } from '../ui/IndexView';
+import { buildBoldIndex, BoldIndexEntry, buildMarkdownIndexDocument, FormatMode, SortMode } from '../domain/markdownIndex';
+import { IndexView, IndexSortChangeCallback } from '../ui/IndexView';
 
 // This callback is passed from the custom sidebar view to the controller whenever the user clicks
 // a line number. It is responsible for moving the editor focus to the exact occurrence represented
@@ -12,6 +12,9 @@ export type IndexNavigationHandler = (offset: number, length: number) => void;
 export class IndexController {
   private readonly view: IndexView;
   private selectedModes: FormatMode[] = ['bold'];
+  // The sort mode controls how entries are ordered in the sidebar.
+  // Defaults to 'alphabetical' for a natural, easy-to-scan display.
+  private selectedSort: SortMode = 'alphabetical';
 
   constructor(private readonly app: any) {
     // The view is the presentation layer. It knows how to render the filter buttons, the search box,
@@ -23,6 +26,13 @@ export class IndexController {
   // note may be re-rendered several times while the user toggles filters.
   setModes(modes: FormatMode[]): void {
     this.selectedModes = modes.length > 0 ? modes : ['bold'];
+  }
+
+  // Updates the active sort mode. The controller stores the current selection to persist the user's
+  // preference across note switches and re-renders. This allows users to consistently view their index
+  // in their preferred order (either alphabetically or by document line order).
+  setSort(sortMode: SortMode): void {
+    this.selectedSort = sortMode;
   }
 
   // Reads the current markdown note and refreshes the sidebar panel using the selected format modes.
@@ -44,10 +54,24 @@ export class IndexController {
 
     // The actual rendering is delegated to the view, while the controller keeps ownership of the
     // state and callback chain. This separation keeps the UI code easier to maintain.
-    this.view.render(container, activeFile.basename, entries, onNavigate, this.selectedModes, (modes) => {
-      this.setModes(modes);
-      this.render(container, onNavigate);
-    }, () => this.exportCurrentIndex(), () => this.openCurrentExport());
+    this.view.render(
+      container,
+      activeFile.basename,
+      entries,
+      onNavigate,
+      this.selectedModes,
+      (modes) => {
+        this.setModes(modes);
+        this.render(container, onNavigate);
+      },
+      () => this.exportCurrentIndex(),
+      () => this.openCurrentExport(),
+      this.selectedSort,
+      (sortMode) => {
+        this.setSort(sortMode);
+        this.render(container, onNavigate);
+      }
+    );
   }
 
   // Exports the current index as a markdown file next to the active note.

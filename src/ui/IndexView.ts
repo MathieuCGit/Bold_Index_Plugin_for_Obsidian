@@ -1,4 +1,4 @@
-import { ALL_FORMAT_MODES, BoldIndexEntry, filterBoldIndexEntries, FormatMode } from '../domain/markdownIndex';
+import { ALL_FORMAT_MODES, BoldIndexEntry, filterBoldIndexEntries, FormatMode, ALL_SORT_MODES, SortMode, sortBoldIndexEntries } from '../domain/markdownIndex';
 
 // This callback is invoked when the user clicks one of the line numbers displayed next to a term.
 // The offset is the exact position in the markdown document, and the length is used to select the
@@ -8,6 +8,10 @@ export type NavigationCallback = (offset: number, length: number) => void;
 // This callback is triggered whenever the user toggles one of the format filters in the sidebar.
 // It allows the parent controller to refresh the index using the newly selected emphasis modes.
 export type IndexModeChangeCallback = (modes: FormatMode[]) => void;
+
+// This callback is triggered whenever the user changes the sorting order of the index entries.
+// It allows the parent controller to persist the selected sort mode and refresh the display.
+export type IndexSortChangeCallback = (sortMode: SortMode) => void;
 
 // This class is responsible for all rendering work inside the custom Obsidian view.
 // It creates the filter buttons, the search box, the empty state, and the clickable list of terms
@@ -25,8 +29,8 @@ export class IndexView {
   }
 
   // Renders the full sidebar interface for the current note.
-  // The panel begins with the note title, then the export button, then the mode filters, then the
-  // live search input and the result list. We pass callbacks to keep the UI decoupled from the
+  // The panel begins with the note title, then the export button, then the mode filters, the sort menu,
+  // then the live search input and the result list. We pass callbacks to keep the UI decoupled from the
   // controller and avoid hard-coding the actual navigation logic directly in the DOM layer.
   render(
     container: any,
@@ -36,7 +40,9 @@ export class IndexView {
     selectedModes: FormatMode[] = ['bold'],
     onModeChange?: IndexModeChangeCallback,
     onExport?: () => void,
-    onOpenExport?: () => void
+    onOpenExport?: () => void,
+    selectedSort: SortMode = 'alphabetical',
+    onSortChange?: IndexSortChangeCallback
   ): void {
     container.empty();
     container.createEl('h4', { text: title });
@@ -137,6 +143,118 @@ export class IndexView {
       });
     });
 
+    // The sort menu allows users to change how the index entries are ordered.
+    // This is placed after the format mode buttons (B, I, H) to keep related controls grouped together.
+    // The sort button displays the current sort mode and opens a dropdown menu with all available options.
+    const sortButtonContainer = modeBar.createEl('div', { cls: 'bold-index-sort-button-container' });
+    sortButtonContainer.style.position = 'relative';
+    sortButtonContainer.style.display = 'flex';
+    sortButtonContainer.style.alignItems = 'center';
+
+    const sortButton = sortButtonContainer.createEl('button', {
+      text: selectedSort === 'alphabetical' ? 'A↓' : 'L↓',
+      cls: 'mod-cta'
+    });
+    sortButton.type = 'button';
+    sortButton.title = selectedSort === 'alphabetical' ? 'Sort: Alphabetical' : 'Sort: By Line';
+    sortButton.style.minWidth = '32px';
+    sortButton.style.width = '32px';
+    sortButton.style.height = '32px';
+    sortButton.style.padding = '0';
+    sortButton.style.border = '1px solid var(--interactive-accent)';
+    sortButton.style.fontSize = '14px';
+    sortButton.style.fontWeight = '500';
+    sortButton.style.zIndex = '1';
+
+    // The dropdown menu is positioned absolutely relative to the sort button container.
+    // It remains hidden until the user clicks the button, then is toggled on/off with each click.
+    const sortMenu = sortButtonContainer.createEl('div', { cls: 'bold-index-sort-menu' });
+    sortMenu.style.position = 'absolute';
+    sortMenu.style.top = '100%';
+    sortMenu.style.left = '0';
+    sortMenu.style.marginTop = '4px';
+    sortMenu.style.backgroundColor = 'var(--background-secondary)';
+    sortMenu.style.border = '1px solid var(--background-modifier-border)';
+    sortMenu.style.borderRadius = '4px';
+    sortMenu.style.minWidth = '150px';
+    sortMenu.style.zIndex = '1000';
+    sortMenu.style.display = 'none';
+    sortMenu.style.boxShadow = '0 2px 8px rgba(0, 0, 0, 0.15)';
+
+    // Create menu items for each available sort mode.
+    // Each item is selectable and the currently active mode is visually highlighted.
+    const sortModeItems = new Map<SortMode, any>();
+
+    ALL_SORT_MODES.forEach((mode) => {
+      const label = mode === 'alphabetical' ? 'Alphabetical (A↓)' : 'By Line (L↓)';
+      const item = sortMenu.createEl('div', { text: label, cls: 'bold-index-sort-menu-item' });
+      item.style.padding = '8px 12px';
+      item.style.cursor = 'pointer';
+      item.style.fontSize = '13px';
+      item.style.userSelect = 'none';
+
+      // Highlight the currently selected sort mode.
+      if (mode === selectedSort) {
+        item.style.backgroundColor = 'var(--background-modifier-active)';
+        item.style.color = 'var(--text-accent)';
+      } else {
+        item.style.backgroundColor = 'transparent';
+        item.style.color = 'var(--text-normal)';
+      }
+
+      // Add hover effect for better UX.
+      item.addEventListener('mouseenter', () => {
+        if (mode !== selectedSort) {
+          item.style.backgroundColor = 'var(--background-modifier-hover)';
+        }
+      });
+
+      item.addEventListener('mouseleave', () => {
+        if (mode !== selectedSort) {
+          item.style.backgroundColor = 'transparent';
+        }
+      });
+
+      // When a menu item is clicked, update the sort mode, refresh the UI, and close the menu.
+      item.addEventListener('click', () => {
+        // Update button text and title to reflect the new sort mode.
+        sortButton.setText(mode === 'alphabetical' ? 'A↓' : 'L↓');
+        sortButton.title = mode === 'alphabetical' ? 'Sort: Alphabetical' : 'Sort: By Line';
+
+        // Update visual appearance of all menu items.
+        sortModeItems.forEach((menuItem, key) => {
+          if (key === mode) {
+            menuItem.style.backgroundColor = 'var(--background-modifier-active)';
+            menuItem.style.color = 'var(--text-accent)';
+          } else {
+            menuItem.style.backgroundColor = 'transparent';
+            menuItem.style.color = 'var(--text-normal)';
+          }
+        });
+
+        // Close the menu.
+        sortMenu.style.display = 'none';
+
+        // Trigger the callback to notify the controller of the sort mode change.
+        onSortChange?.(mode);
+      });
+
+      sortModeItems.set(mode, item);
+    });
+
+    // Toggle the sort menu visibility when the sort button is clicked.
+    sortButton.addEventListener('click', () => {
+      const isVisible = sortMenu.style.display === 'block';
+      sortMenu.style.display = isVisible ? 'none' : 'block';
+    });
+
+    // Close the sort menu when clicking outside of it (standard dropdown behavior).
+    document.addEventListener('click', (event: any) => {
+      if (!sortButtonContainer.contains(event.target)) {
+        sortMenu.style.display = 'none';
+      }
+    });
+
     // The search box gives the user a quick way to narrow the index without rebuilding the full note.
     // It filters the list in real time using the underlying data already computed in the controller.
     const searchInput = container.createEl('input', {
@@ -153,7 +271,9 @@ export class IndexView {
     const resultsContainer = container.createEl('div');
 
     const renderEntries = (query: string): void => {
+      // First filter entries based on the search query, then apply the selected sort mode.
       const filteredEntries = filterBoldIndexEntries(entries, query);
+      const sortedEntries = sortBoldIndexEntries(filteredEntries, selectedSort);
       resultsContainer.empty();
 
       if (entries.length === 0) {
@@ -170,7 +290,8 @@ export class IndexView {
       list.style.listStyle = 'none';
       list.style.paddingLeft = '0';
 
-      filteredEntries.forEach((entry) => {
+      // Render each sorted and filtered entry with all its occurrences.
+      sortedEntries.forEach((entry) => {
         const item = list.createEl('li');
         item.style.marginBottom = '6px';
 

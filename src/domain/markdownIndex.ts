@@ -23,6 +23,41 @@ export type FormatMode = 'bold' | 'italic' | 'highlight';
 // which means the user can combine bold, italic, and highlight entries in the same index.
 export const ALL_FORMAT_MODES: FormatMode[] = ['bold', 'italic', 'highlight'];
 
+// Determines the order in which index entries are displayed to the user.
+// - 'alphabetical': entries are sorted alphabetically (default, user-friendly natural order)
+// - 'byLine': entries are sorted by the line number of their first occurrence (document order)
+export type SortMode = 'alphabetical' | 'byLine';
+
+// A fixed list of supported sort modes for the index entries.
+export const ALL_SORT_MODES: SortMode[] = ['alphabetical', 'byLine'];
+
+// Sorts the given index entries according to the specified sort mode.
+// This function preserves the original structure of entries and their occurrences,
+// only changing the presentation order in the sidebar UI.
+//
+// Alphabetical sorting uses the French locale to ensure consistent, natural ordering
+// across different environments. Line-based sorting groups entries by their first occurrence
+// in the document, which helps users navigate in reading order.
+export function sortBoldIndexEntries(entries: BoldIndexEntry[], mode: SortMode): BoldIndexEntry[] {
+  if (mode === 'alphabetical') {
+    // Sort alphabetically using French locale for consistent, natural-feeling order.
+    return [...entries].sort((left, right) => left.term.localeCompare(right.term, 'fr'));
+  }
+
+  if (mode === 'byLine') {
+    // Sort by the line number of the first occurrence of each term.
+    // This maintains document order and helps users scan the index in reading sequence.
+    return [...entries].sort((left, right) => {
+      const leftFirstLine = left.occurrences[0]?.line ?? 0;
+      const rightFirstLine = right.occurrences[0]?.line ?? 0;
+      return leftFirstLine - rightFirstLine;
+    });
+  }
+
+  // Fallback to alphabetical if an unexpected mode is received (defensive programming).
+  return [...entries].sort((left, right) => left.term.localeCompare(right.term, 'fr'));
+}
+
 // Filters the already-built index entries using the current live search query from the sidebar.
 // The comparison is intentionally case-insensitive so the user can type the search term
 // naturally without worrying about the original capitalization in the note.
